@@ -1,5 +1,10 @@
 const Fs = require('fs');
 var admin = require("firebase-admin");
+const algoliasearch = require('algoliasearch');
+
+var client = algoliasearch('APP_ID', 'ADMIN_KEY');
+
+var tasksIndex = client.initIndex('YOUR_INDEX');
 
 const CsvReadableStream = require('csv-reader');
 var serviceAccount = require("firebase-admin.json");
@@ -32,8 +37,8 @@ function convertToObject(row){
         title,
         description,
         onwer: {
-            onwer_id,
-            onwer_name,
+            id: onwer_id,
+            name: onwer_name,
         },
         history: [
             {
@@ -60,6 +65,7 @@ function readCSV(){
             trim: true 
         })).on('data', convertToObject).on('end', function (data) {
             uplodToFirestore();
+            uploadToAlgolia();
         });
 }
 
@@ -69,6 +75,19 @@ async function uplodToFirestore(){
         await admin.firestore().collection('Tasks').add({
             ...Task
         });
+        console.log(`${i} Sent`)
+        i++;
+    }
+}
+
+async function uploadToAlgolia(){
+    let i = 1;
+    let data = await admin.firestore().collection('Tasks').get();
+        
+    for (let doc of data.docs){
+        let Task = doc.data();
+        Task.objectID = doc.id;
+        await tasksIndex.saveObject(Task);          
         console.log(`${i} Sent`)
         i++;
     }
